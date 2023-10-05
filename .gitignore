@@ -1,0 +1,9 @@
+# JS Ecosystem Garbage
+node_modules/
+yarn-error.log
+
+# Distribution files
+dist/
+
+# Local Testing Shit
+testbed.ts
