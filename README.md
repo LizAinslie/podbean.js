@@ -6,6 +6,12 @@ A friendly NodeJS wrapper for the Podbean API
 > you need client side auth, or something else, this is probably not the library
 > for you. 
 
+## Installation
+I use yarn.
+```sh
+yarn add podbean.js
+```
+
 ## Usage
 A quick example to demonstrate what this library can do at the time of writing:
 
