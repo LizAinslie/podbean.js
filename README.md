@@ -37,7 +37,7 @@ console.log(`\nDone fetching episodes. Total Fetched: ${count}\n`);
 episodes.forEach((it, idx) => {
   console.log(`${it.episodeNumber} - ${it.title} (Status: ${it.status}) [ID: ${it.id}]`);
   console.log(`\tCreated: ${it.publishTime}`);
-  console.log(`\t${it.duration ? `Duration: ${it.duration}` : 'Duration: 00:00 (No file)'}`);
+  console.log(`\t${it.duration ? `Duration: ${new Date(1000 * it.duration).toISOString().substr(11, 8)}` : 'Duration: 00:00:00 (No file)'}`);
   if (idx + 1 !== episodes.length) console.log(''); // spacer
 });
 
