@@ -13,7 +13,10 @@ yarn add podbean.js
 ```
 
 ## Usage
-A quick example to demonstrate what this library can do at the time of writing:
+Here's A quick example to demonstrate what this library can do at the time of 
+writing. You can copy this into a file named `testbed.ts` at the root of this
+repo, which is ignored because I'm too lazy to use an env file, and run 
+`yarn testbed` to try it out.
 
 ```ts
 import PodbeanAPI from "podbean.js";
