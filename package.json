@@ -1,6 +1,6 @@
 {
   "name": "podbean.js",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A friendly NodeJS wrapper for the Podbean API",
   "repository": "git@github.com:LizAinslie/podbean.js.git",
   "author": "Liz Ainslie <lizainslie16@gmail.com>",
