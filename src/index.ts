@@ -4,7 +4,6 @@
  * @author LizAinslie
  */
 
-import axios from 'axios';
 import { version as WRAPPER_VERSION } from '../package.json';
 import { AppleEpisodeTypeEnum, EpisodeExplicitContentEnum, EpisodeObject, EpisodeStatusEnum, EpisodeTypeEnum, FetchMultipleEpisodesResponseSuccess, FetchPodcastResponseSuccess, FetchSingleEpisodeResponseSuccess, LoginResponseInvalidGrantType, LoginResponseSuccess, PodcastObject, PodcastStatusEnum, ResponseInvalidToken } from './apiTypes';
 import qs from 'qs';
@@ -22,12 +21,14 @@ class Cache {
   private episodes: Map<string, Episode>;
   private podcasts: Map<string, Podcast>;
   private accessToken: string;
+  private userAgent: string;
 
   /**
    *
    */
-  constructor(accessToken: string) {
+  constructor(accessToken: string, userAgent: string) {
     this.accessToken = accessToken;
+    this.userAgent = userAgent;
     this.episodes = new Map();
     this.podcasts = new Map();
 
@@ -40,18 +41,21 @@ class Cache {
       
       throw 'TODO: otherwise fetch a podcast by id, add it and return it'
     } else {
-      if (!this.accessToken) throw new Error('Please call PodbeanAPI.login() before requesting podcast data.')
+      if (!this.accessToken) throw new Error('Please call PodbeanAPI.login() before requesting podcast data.');
       
-      const res = await axios.get<FetchPodcastResponseSuccess | ResponseInvalidToken>(`${PODBEAN_V1_API_BASE}/podcast`, {
-        params: {
-          access_token: this.accessToken,
-        }
+      const res = await fetch(`${PODBEAN_V1_API_BASE}/podcast?${qs.stringify({
+        access_token: this.accessToken,
+      })}`, {
+        method: 'GET',
+        headers: {
+          'User-Agent': this.userAgent,
+        },
       });
 
-      if (res.status !== 200) throw res.data;
+      if (res.status !== 200) throw await res.json();
       else {
-        const podcastObject = (res.data as FetchPodcastResponseSuccess).podcast;
-        const podcast = new Podcast(podcastObject);
+        const responseData: FetchPodcastResponseSuccess = await res.json()
+        const podcast = new Podcast(responseData.podcast);
         this.podcasts.set(podcast.id, podcast);
         return podcast;
       }
@@ -63,21 +67,23 @@ class Cache {
   }
 
   async getOrPutEpisode(id: string): Promise<Episode> {
+    if (!this.accessToken) throw new Error('Please call PodbeanAPI.login() before requesting podcast data.');
+
     if (this.episodes.has(id)) return this.episodes.get(id)!;
     else {
-      const res = await axios.get<FetchSingleEpisodeResponseSuccess | ResponseInvalidToken>(
-        `${PODBEAN_V1_API_BASE}/episodes/${id}`,
-        {
-          params: {
-            access_token: this.accessToken,
-          },
-        }
-      );
+      const res = await fetch(`${PODBEAN_V1_API_BASE}/episodes/${id}?${qs.stringify({
+        access_token: this.accessToken,
+      })}`, {
+        method: 'GET',
+        headers: {
+          'User-Agent': this.userAgent,
+        },
+      });
 
-      if (res.status !== 200) throw res.data;
+      if (!res.ok) throw await res.json();
       else {
-        const episodeObject = (res.data as FetchSingleEpisodeResponseSuccess).episode;
-        const episode = new Episode(episodeObject);
+        const responseData: FetchSingleEpisodeResponseSuccess = await res.json();
+        const episode = new Episode(responseData.episode);
         this.episodes.set(episode.id, episode);
         return episode;
       }
@@ -178,8 +184,6 @@ export default class PodbeanAPI {
     this.clientId = clientId;
     this.clientSecret = clientSecret;
     this.userAgent = userAgent;
-
-    axios.defaults.headers.common['User-Agent'] = this.userAgent;
   }
 
   /**
@@ -191,30 +195,33 @@ export default class PodbeanAPI {
    * @see https://developers.podbean.com/podbean-api-docs/#api-Authentication-Get_Access_Token_By_Client_ID_and_Client_Secret
    */
   async login(podcastId?: string) {
-    // Encode a basic auth header value with client id/secret
-    const authBasic = btoa(`${this.clientId}:${this.clientSecret}`);
+    try {
+      // Encode a basic auth header value with client id/secret
+      const authBasic = btoa(`${this.clientId}:${this.clientSecret}`);
 
-    const res = await axios.post<LoginResponseSuccess | LoginResponseInvalidGrantType>(
-      `${PODBEAN_V1_API_BASE}/oauth/token`,
-      qs.stringify({ // Request body
-        grant_type: 'client_credentials',
-
-        // If the consumer specifies a podcast id, send it with the auth request.
-        // Otherwise, let the API decide.
-        ...(podcastId ? { podcast_id: podcastId } : {})
-      }),
-      { // Request options
+      const res = await fetch(`${PODBEAN_V1_API_BASE}/oauth/token`, {
+        method: 'POST',
+        body: qs.stringify({ // Request body
+          grant_type: 'client_credentials',
+  
+          // If the consumer specifies a podcast id, send it with the auth request.
+          // Otherwise, let the API decide.
+          ...(podcastId ? { podcast_id: podcastId } : {})
+        }),
         headers: {
           'Authorization': `Basic ${authBasic}`,
           'Content-Type': 'application/x-www-form-urlencoded', // OAuth requires urlencoded :/
         },
-      }
-    );
+      })
 
-    if (res.status !== 200) throw res.data;
-    
-    this.accessToken = (res.data as LoginResponseSuccess).access_token;
-    this.cache = new Cache(this.accessToken);
+      if (!res.ok) throw await res.json();
+      
+      const responseData: LoginResponseSuccess = await res.json();
+      this.accessToken = responseData.access_token;
+      this.cache = new Cache(this.accessToken, this.userAgent);
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   /**
@@ -234,23 +241,19 @@ export default class PodbeanAPI {
    * @returns [episodes, number of episodes, whether the api has more episodes]
    */
   async fetchEpisodes(offset: number = 0, limit: number = 20): Promise<[episodes: Episode[], count: number, hasMore: boolean]> {
-    const res = await axios.get<FetchMultipleEpisodesResponseSuccess | ResponseInvalidToken>(
-      `${PODBEAN_V1_API_BASE}/episodes`,
-      {
-        params: {
-          access_token: this.accessToken,
-          offset,
-          limit,
-        },
-      }
-    );
 
-    if (res.status !== 200) throw res.data;
-    const resp = res.data as FetchMultipleEpisodesResponseSuccess;
+    const res = await fetch(`${PODBEAN_V1_API_BASE}/episodes?${qs.stringify({
+      access_token: this.accessToken,
+      offset,
+      limit,
+    })}`)
 
-    const episodes = resp.episodes.map(it => new Episode(it)); // construct episode objects
+    if (!res.ok) throw await res.json();
+    const responseData: FetchMultipleEpisodesResponseSuccess = await res.json();
+
+    const episodes = responseData.episodes.map(it => new Episode(it)); // construct episode objects
     episodes.forEach(it => Cache.INSTANCE.putEpisode(it)); // push all fetched episodes to cache
 
-    return [episodes, resp.count, resp.has_more]; // return values
+    return [episodes, responseData.count, responseData.has_more]; // return values
   }
 }

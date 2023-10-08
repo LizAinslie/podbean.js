@@ -34,7 +34,6 @@
     "testbed": "vite-node testbed.ts"
   },
   "dependencies": {
-    "axios": "^1.5.1",
     "qs": "^6.11.2"
   },
   "keywords": [
